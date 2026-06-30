@@ -31,6 +31,12 @@
     return escapeHtml(s);
   }
 
+  function nestedPageImageSrc(src) {
+    const value = String(src || "").trim();
+    if (!value || /^(https?:|data:|blob:|\/|\.\.\/)/i.test(value)) return value;
+    return "../" + value;
+  }
+
   function getProject() {
     const params = new URLSearchParams(location.search);
     const id = params.get("id");
@@ -41,9 +47,10 @@
   }
 
   function renderHero(project) {
-    if (project.image && /^https?:\/\//.test(project.image)) {
+    // 这里不再限定 http(s) —— 任何非空路径都直接用，支持 assets/images/xxx.jpg 相对路径
+    if (project.image && project.image.trim()) {
       return `<figure class="detail__hero">
-        <img src="${escapeAttr(project.image)}" alt="${escapeAttr(project.title)}" />
+        <img src="${escapeAttr(nestedPageImageSrc(project.image))}" alt="${escapeAttr(project.title)}" />
       </figure>`;
     }
     // 没图就用纸张底色的封面

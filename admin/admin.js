@@ -88,18 +88,20 @@
         title: "Project Gamma",
         year: "2021",
         category: "ml",
-        tag: "Computer Vision",
+        tag: "异常行为检测 · Pose",
         description:
-          "基于姿态估计的实时人体动作检测，覆盖异常姿态、跌倒、碰撞等场景的工业级告警。",
-        image: "",
+          "面向监所场景的实时异常行为检测，基于 RTMDet + ByteTrack + ViTPose 的姿态估计与多特征时序判定。",
+        image: "assets/images/gamma-cover.jpg",
         detail: [
-          "工业场景的人体动作检测系统。",
-          "PyTorch 做的姿态估计模型，部署在边缘设备（Jetson）上做实时推断，配合一个简单的告警工作流。",
-          "通过 MQTT 把告警推到车间的中控屏，做人工兜底。",
+          "在少样本数据、有限算力、又拿不到成熟预训练模型的条件下，从 0 搭的一套监所异常行为检测算法。",
+          "底层流程：RTMDet 做人体检测，ByteTrack 做跨帧跟踪，ViTPose 抽 17 个关键点。三段管线全部本地推理，跑在边缘设备（Jetson）上，不依赖云端。",
+          "判定层不用粗暴的二分类，而是把头部运动轨迹、手部静止约束、肘部姿态约束、滑动窗口时序统计这些可解释特征做成一个多特征融合判定。这层可配置、可加权，方便按监所场景调。",
+          "工程上做了配置化 + 模块化，每个特征都是独立模块，组合和权重在 YAML 里改就行，不用动代码。",
+          "结果：视频级检测 Precision ~100%，Recall 100%，F1 ~100%。误检漏检每出现一例都回去查原因、迭代特征与权重，最后这套规则稳定下来了。",
         ],
-        chips: ["Python", "PyTorch", "Edge"],
-        cover1: "#d8d8d2",
-        cover2: "#c0c0ba",
+        chips: ["RTMDet", "ByteTrack", "ViTPose", "Python", "PyTorch", "Edge"],
+        cover1: "#e0e6dc",
+        cover2: "#c8d4c0",
         link: "",
         order: 2,
       },
@@ -262,9 +264,62 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       return true;
     } catch (e) {
-      toast("保存失败：localStorage 不可用", "error");
+      const quotaExceeded =
+        e &&
+        (e.name === "QuotaExceededError" ||
+          e.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+          e.code === 22);
+      toast(
+        quotaExceeded
+          ? "保存失败：图片数据太大，请压缩图片或填写 assets/images 路径"
+          : "保存失败：localStorage 不可用",
+        "error"
+      );
       return false;
     }
+  }
+
+  function optimizeImageFile(file, onDone, onError) {
+    if (!file || !file.type || !file.type.startsWith("image/")) {
+      onError(new Error("请选择图片文件"));
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const maxW = 1400;
+      const maxH = 900;
+      const scale = Math.min(1, maxW / img.width, maxH / img.height);
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+      if (dataUrl.length > 1800 * 1024) {
+        onError(new Error("图片仍然太大，请压缩后上传，或填写 assets/images 路径"));
+        return;
+      }
+      onDone(dataUrl);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      onError(new Error("图片读取失败"));
+    };
+    img.src = objectUrl;
+  }
+
+  function nestedPageImageSrc(src) {
+    const value = String(src || "").trim();
+    if (!value || /^(https?:|data:|blob:|\/|\.\.\/)/i.test(value)) return value;
+    return "../" + value;
   }
 
   let data = loadData();
@@ -363,6 +418,33 @@
     $("#modal-root").hidden = true;
     document.body.style.overflow = "";
   }
+
+  /**
+   * 确认弹窗（替代浏览器 confirm）
+   * 用法：confirmModal("确定删除？", () => { ...删除逻辑... })
+   */
+  function confirmModal(message, onConfirm) {
+    const msg = el("p", { text: message });
+    msg.style.cssText = "font-family:var(--f-sans);font-size:15px;line-height:1.6;margin:0;padding:8px 0;color:var(--c-text)";
+    const cancel = el("button", {
+      class: "btn btn--ghost",
+      type: "button",
+      onClick: closeModal,
+      text: "取消",
+    });
+    const ok = el("button", {
+      class: "btn btn--danger",
+      type: "button",
+      onClick: () => { closeModal(); onConfirm(); },
+      text: "确认删除",
+    });
+    openModal({
+      title: "请确认",
+      body: msg,
+      footer: [cancel, ok],
+    });
+  }
+
   document.addEventListener("click", (e) => {
     if (e.target.matches("[data-modal-close]")) closeModal();
   });
@@ -737,20 +819,87 @@
       ])
     );
 
-    // image (URL)
+    // image upload widget
     const imgInput = el("input", {
-      type: "url",
+      type: "text",
       value: p.image || "",
-      placeholder: "https://example.com/cover.jpg  （留空则用下面的纯色封面）",
+      placeholder: "assets/images/cover.jpg 或 https://example.com/cover.jpg",
+      class: "img-upload__path",
     });
     imgInput.dataset.k = "image";
+    const uploadZone = el("div", { class: "img-upload" });
+    const preview = el("div", { class: "img-upload__preview" });
+    const uploadBtn = el("button", {
+      class: "img-upload__btn",
+      type: "button",
+      text: "点击上传封面图",
+    });
+    const uploadInput = el("input", {
+      type: "file",
+      accept: "image/*",
+      class: "img-upload__input",
+    });
+    const removeBtn = el("button", {
+      class: "btn btn--ghost btn--sm",
+      type: "button",
+      text: "移除图片",
+    });
+    removeBtn.style.cssText = "margin-top:6px;display:none";
+    function setImageValue(value) {
+      imgInput.value = value;
+      updateImagePreview(value);
+    }
+    function updateImagePreview(value) {
+      if (value && value.trim()) {
+        preview.style.backgroundImage = `url(${nestedPageImageSrc(value)})`;
+        preview.classList.add("has-img");
+        removeBtn.style.display = "";
+        uploadBtn.textContent = "更换图片";
+      } else {
+        preview.style.backgroundImage = "";
+        preview.classList.remove("has-img");
+        removeBtn.style.display = "none";
+        uploadBtn.textContent = "点击上传封面图";
+      }
+    }
+    imgInput.addEventListener("input", () => updateImagePreview(imgInput.value));
+    uploadBtn.addEventListener("click", () => uploadInput.click());
+    uploadInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      uploadBtn.textContent = "处理中...";
+      optimizeImageFile(
+        file,
+        (dataUrl) => {
+          setImageValue(dataUrl);
+          uploadInput.value = "";
+          toast("图片已压缩并填入");
+        },
+        (err) => {
+          uploadBtn.textContent = imgInput.value.trim() ? "更换图片" : "点击上传封面图";
+          uploadInput.value = "";
+          toast(err.message, "error");
+        }
+      );
+    });
+    removeBtn.addEventListener("click", () => {
+      confirmModal("确定移除这张封面图？", () => {
+        setImageValue("");
+        uploadInput.value = "";
+      });
+    });
+    updateImagePreview(p.image || "");
+    uploadZone.appendChild(preview);
+    uploadZone.appendChild(imgInput);
+    uploadZone.appendChild(uploadBtn);
+    uploadZone.appendChild(removeBtn);
     card.appendChild(
       el("div", { class: "form-row" }, [
         el("label", null, [
-          el("span", { text: "封面图 URL" }),
-          el("span", { class: "hint", text: "可选" }),
+          el("span", { text: "封面图" }),
+          el("span", { class: "hint", text: "拖拽或点击上传 · 推荐 16:9 · 可填 URL" }),
         ]),
-        imgInput,
+        uploadZone,
       ])
     );
 
@@ -853,8 +1002,10 @@
             {
               type: "button",
               onClick: () => {
-                state.splice(idx, 1);
-                rerender();
+                confirmModal(`确定删除标签「${c}」？`, () => {
+                  state.splice(idx, 1);
+                  rerender();
+                });
               },
             },
             "×"
@@ -928,13 +1079,19 @@
       order: original.order ?? data.projects.length,
     };
 
+    const nextData = { ...data, projects: [...data.projects] };
     if (isEdit) {
-      const idx = data.projects.findIndex((p) => p.id === original.id);
-      data.projects[idx] = record;
+      const idx = nextData.projects.findIndex((p) => p.id === original.id);
+      if (idx === -1) {
+        toast("找不到这个项目，保存失败", "error");
+        return;
+      }
+      nextData.projects[idx] = record;
     } else {
-      data.projects.push(record);
+      nextData.projects.push(record);
     }
-    saveData(data);
+    if (!saveData(nextData)) return;
+    data = nextData;
     toast(isEdit ? "已保存" : "项目已创建");
     location.hash = "#/projects";
   }
@@ -1133,6 +1290,20 @@
         })(),
       ])
     );
+    card.appendChild(
+      el("div", { class: "form-row", style: { marginTop: "16px" } }, [
+        el("label", null, [el("span", { text: "Hero 概述 / 简介" })]),
+        (() => {
+          const t = el("textarea", {
+            placeholder: "一段展示在首页开头的简短介绍",
+            rows: "3",
+          });
+          t.id = "owner-intro";
+          t.value = data.owner.intro || "";
+          return t;
+        })(),
+      ])
+    );
 
     // about paragraphs
     card.appendChild(el("h3", { text: "自我介绍段落", style: { marginTop: "32px" } }));
@@ -1226,7 +1397,10 @@
             class: "btn btn--danger btn--sm",
             type: "button",
             style: { marginTop: "4px" },
-            onClick: (e) => e.target.closest(".form-row").remove(),
+            onClick: (e) => {
+              const row = e.currentTarget.closest(".form-row");
+              confirmModal("确定删除这段自我介绍？", () => row?.remove());
+            },
           },
           "删除"
         ),
@@ -1249,7 +1423,10 @@
           {
             class: "btn btn--danger btn--sm",
             type: "button",
-            onClick: (e) => e.target.closest(".form-row").remove(),
+            onClick: (e) => {
+              const row = e.currentTarget.closest(".form-row");
+              confirmModal("确定删除这条「现在在做的事」？", () => row?.remove());
+            },
           },
           "删除"
         ),
@@ -1263,6 +1440,7 @@
     data.owner.yearsExp = $("#owner-years").value.trim();
     data.owner.projectsCount = $("#owner-count").value.trim();
     data.owner.tagline = $("#owner-tagline").value.trim();
+    data.owner.intro = $("#owner-intro").value.trim();
 
     data.about.paragraphs = $$("#about-list [data-k='about-p']")
       .map((t) => t.value.trim())
@@ -1352,10 +1530,11 @@
             class: "btn btn--danger btn--sm",
             type: "button",
             onClick: () => {
-              if (!confirm(`删除分组「${g.group}」？`)) return;
-              data.skills.splice(gi, 1);
-              saveData(data);
-              route();
+              confirmModal(`确定删除分组「${g.group}」？`, () => {
+                data.skills.splice(gi, 1);
+                saveData(data);
+                route();
+              });
             },
           },
           "删除分组"
@@ -1394,10 +1573,12 @@
             class: "btn btn--text",
             type: "button",
             onClick: () => {
-              group.items.splice(idx, 1);
-              saveData(data);
-              renderSkills();
-              route();
+              confirmModal(`确定删除技能「${it.name || "未命名技能"}」？`, () => {
+                group.items.splice(idx, 1);
+                saveData(data);
+                renderSkills();
+                route();
+              });
             },
           },
           "移除"
@@ -1512,9 +1693,11 @@
                 class: "btn btn--danger btn--sm",
                 type: "button",
                 onClick: () => {
-                  data.timeline.splice(i, 1);
-                  saveData(data);
-                  route();
+                  confirmModal("确定删除这条经历？", () => {
+                    data.timeline.splice(i, 1);
+                    saveData(data);
+                    route();
+                  });
                 },
               },
               "删除"
@@ -1661,11 +1844,12 @@
                   if (!parsed.projects || !Array.isArray(parsed.projects)) {
                     throw new Error("数据格式不对，需要包含 projects 数组");
                   }
-                  if (!confirm("确认覆盖当前数据？此操作不可撤销。")) return;
-                  data = mergeDefaults(parsed, DEFAULT_DATA);
-                  saveData(data);
-                  toast("导入成功");
-                  route();
+                  confirmModal("确认覆盖当前数据？此操作不可撤销。", () => {
+                    data = mergeDefaults(parsed, DEFAULT_DATA);
+                    saveData(data);
+                    toast("导入成功");
+                    route();
+                  });
                 } catch (err) {
                   toast("导入失败：" + err.message, "error");
                 }
@@ -1759,12 +1943,14 @@
           class: "btn btn--danger btn--sm",
           type: "button",
           onClick: () => {
-            if (!confirm("真的要重置吗？所有改动会丢失。")) return;
-            if (!confirm("最后一次确认：重置为初始示例数据？")) return;
-            data = JSON.parse(JSON.stringify(DEFAULT_DATA));
-            saveData(data);
-            toast("已重置");
-            route();
+            confirmModal("真的要重置吗？所有改动会丢失。", () => {
+              confirmModal("最后一次确认：重置为初始示例数据？", () => {
+                data = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                saveData(data);
+                toast("已重置");
+                route();
+              });
+            });
           },
         },
         "重置为初始示例"
