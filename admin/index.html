@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin · Portfolio 后台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="../assets/css/style.css" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body class="admin-body">
+  <!-- Login view -->
+  <section id="login-view" class="login-view" hidden>
+    <div class="login-card">
+      <div class="login-card__brand">
+        <span class="logo-mark">◆</span>
+        <span>portfolio admin</span>
+      </div>
+      <h1>登录管理后台</h1>
+      <p class="login-card__hint">
+        演示密码 <code>admin</code> · 实际生产请改成强密码 + 服务端校验
+      </p>
+      <form id="login-form" autocomplete="off">
+        <label>
+          <span>密码</span>
+          <input
+            type="password"
+            id="login-password"
+            placeholder="admin"
+            required
+            autocomplete="current-password"
+          />
+        </label>
+        <button class="btn btn--primary" type="submit">登录</button>
+        <p class="login-card__error" id="login-error" hidden></p>
+      </form>
+      <a class="login-card__back" href="../">← 返回前台</a>
+    </div>
+  </section>
+
+  <!-- Admin shell -->
+  <div id="admin-shell" class="admin-shell" hidden>
+    <aside class="admin-side">
+      <a class="admin-side__logo" href="#/dashboard">
+        <span class="logo-mark">◆</span>
+        <span>portfolio admin</span>
+      </a>
+      <nav class="admin-side__nav">
+        <a href="#/dashboard" data-nav="dashboard">
+          <span class="nav-ico">▦</span>概览
+        </a>
+        <a href="#/projects" data-nav="projects">
+          <span class="nav-ico">◆</span>项目
+        </a>
+        <a href="#/categories" data-nav="categories">
+          <span class="nav-ico">▤</span>分类
+        </a>
+        <a href="#/about" data-nav="about">
+          <span class="nav-ico">☺</span>关于我
+        </a>
+        <a href="#/skills" data-nav="skills">
+          <span class="nav-ico">▣</span>技能
+        </a>
+        <a href="#/timeline" data-nav="timeline">
+          <span class="nav-ico">▥</span>经历
+        </a>
+        <a href="#/contact" data-nav="contact">
+          <span class="nav-ico">✉</span>联系
+        </a>
+        <a href="#/settings" data-nav="settings">
+          <span class="nav-ico">⚙</span>设置
+        </a>
+      </nav>
+      <div class="admin-side__foot">
+        <a href="../" target="_blank" class="admin-side__link">
+          ↗ 打开前台
+        </a>
+      </div>
+    </aside>
+
+    <main class="admin-main">
+      <header class="admin-top">
+        <div>
+          <p class="admin-top__crumb" id="crumb">概览</p>
+          <h2 class="admin-top__title" id="page-title">概览</h2>
+        </div>
+        <div class="admin-top__actions">
+          <button class="theme-toggle" id="theme-toggle" aria-label="切换主题" title="切换明暗主题">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+            </svg>
+          </button>
+          <span class="admin-top__user">
+            <span class="dot dot--ok"></span>
+            已登录
+          </span>
+          <button class="btn btn--ghost btn--sm" id="logout-btn">退出</button>
+        </div>
+      </header>
+
+      <div class="admin-view" id="view"><!-- view 渲染到这里 --></div>
+    </main>
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-root" class="modal-root" hidden>
+    <div class="modal-backdrop" data-modal-close></div>
+    <div class="modal" role="dialog" aria-modal="true">
+      <header class="modal__head">
+        <h3 id="modal-title">标题</h3>
+        <button class="modal__close" data-modal-close aria-label="关闭">×</button>
+      </header>
+      <div class="modal__body" id="modal-body"></div>
+      <footer class="modal__foot" id="modal-foot"></footer>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>
