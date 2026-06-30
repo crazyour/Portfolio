@@ -1770,6 +1770,54 @@
     ]);
   }
 
+  function dataJsSource(sourceData) {
+    const json = JSON.stringify(sourceData, null, 2).replace(/</g, "\\u003c");
+    return `/* =========================================================
+   Portfolio · 默认数据源（前台用）
+   admin 也使用同名 STORAGE_KEY 写同一份；这里是给前台兜底用的。
+   ========================================================= */
+(function (root) {
+  "use strict";
+
+  root.PORTFOLIO_DEFAULTS = ${json};
+})(window);
+`;
+  }
+
+  function downloadText(filename, text, type) {
+    const blob = new Blob([text], { type: type || "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).then(
+        () => toast("已复制到剪贴板"),
+        () => fallbackCopyText(text)
+      );
+      return;
+    }
+    fallbackCopyText(text);
+  }
+
+  function fallbackCopyText(text) {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand("copy");
+    textarea.remove();
+    toast(ok ? "已复制到剪贴板" : "复制失败，请改用下载");
+  }
+
   /* =========================================================
      13. 视图：设置
      ========================================================= */
@@ -1780,7 +1828,7 @@
       el("h3", { text: "导出 / 备份" }),
       el("p", {
         style: { color: "var(--c-text-soft)", margin: "8px 0 16px", fontSize: "14px" },
-        text: "把当前数据导出为 JSON 文件，存到本地备份，或粘贴到 index.html / style.css 等地方同步前台。",
+        text: "本地后台保存到浏览器 localStorage。要让 Vercel 看到修改，请导出部署用 data.js，替换 assets/js/data.js 后重新部署。",
       }),
       el(
         "div",
@@ -1792,13 +1840,11 @@
               class: "btn btn--primary btn--sm",
               type: "button",
               onClick: () => {
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = url;
-                a.download = `portfolio-data-${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
-                URL.revokeObjectURL(url);
+                downloadText(
+                  `portfolio-data-${new Date().toISOString().slice(0, 10)}.json`,
+                  JSON.stringify(data, null, 2),
+                  "application/json;charset=utf-8"
+                );
                 toast("已下载 JSON");
               },
             },
@@ -1810,11 +1856,35 @@
               class: "btn btn--ghost btn--sm",
               type: "button",
               onClick: () => {
-                navigator.clipboard.writeText(JSON.stringify(data, null, 2));
-                toast("已复制到剪贴板");
+                copyText(JSON.stringify(data, null, 2));
               },
             },
             "复制到剪贴板"
+          ),
+          el(
+            "button",
+            {
+              class: "btn btn--primary btn--sm",
+              type: "button",
+              onClick: () => {
+                downloadText(
+                  "data.js",
+                  dataJsSource(data),
+                  "application/javascript;charset=utf-8"
+                );
+                toast("已下载部署用 data.js");
+              },
+            },
+            "下载部署用 data.js"
+          ),
+          el(
+            "button",
+            {
+              class: "btn btn--ghost btn--sm",
+              type: "button",
+              onClick: () => copyText(dataJsSource(data)),
+            },
+            "复制部署用 data.js"
           ),
         ]
       ),
